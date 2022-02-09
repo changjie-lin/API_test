@@ -26,10 +26,3 @@ locusts -f testcases/cases_1.yml --master
 
 启动多个 worker process
 locusts -f testcases/cases_1.yml --worker --master-host=127.0.0.1
-
-
-
-问题：
-1. Charles, Fiddle 如何 capture 本地 (localhost, 127.0.0.1) 的流量？
-
-2. test suite 和 test cases 的关系。简单的集合包含关系吗？ Test suite 可以做一些 setup teardown 的预处理？
