@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 08-Apr-2021 at 14:31:25 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "5.4.3"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-10.15.7-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "2.1.1", "metadata": "1.11.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.8.2</td></tr></table>
+    <h2>Summary</h2>
+    <p>3 tests ran in 0.28 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">3 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">testcases/cases_2_test.py::TestCaseCases2::test_start</td>
+          <td class="col-duration">0.05</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>[32m2021-04-08 14:31:25.630[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m450[0m - [1mStart to run testcase: Entry Task &#x27;HTTP module API&#x27; test cases, TestCase ID: 13542af2-648a-4797-82d9-ea5600200b1e[0m
+[32m2021-04-08 14:31:25.630[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;b&#x27; is missing &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.635[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.635[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.635[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485631&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.636[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;93&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameters Missing b&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.636[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 3.81 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.636[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.636[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.637[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.637[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.637[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameters Missing b(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.637[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;b&#x27; is missing &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.637[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;b&#x27; is &#x27;&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.641[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.641[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.642[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485638&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.642[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;124&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;b&#x27; should not be empty&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.642[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 3.51 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;b&#x27; should not be empty(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;b&#x27; is &#x27;&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.643[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is None &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.646[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.646[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.647[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=None
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485644&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.647[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.647[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.62 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.648[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.648[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.648[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.649[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.649[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.649[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is None &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.649[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is a number &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.652[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.652[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.653[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=5
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485649&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.653[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.653[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.71 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.654[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is a number &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.655[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is &#x27;中文&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.657[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.658[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.658[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=%E4%B8%AD%E6%96%87
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485655&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.658[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.658[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.58 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.659[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.659[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.659[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.659[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.659[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.660[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is &#x27;中文&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.660[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is special characters &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.663[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.663[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.663[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=%5E%26%2A%3F
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485660&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.664[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.664[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.64 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.664[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.664[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.665[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.665[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.665[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.665[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is special characters &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.665[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is a long string &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.669[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.669[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.669[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=7FDP8O8ZKIYG90162ETT2441R1EWF6QU2WUK8IWC0JRU8LMFBRWV3V9MNWKW9IIPBDRGS5I2TYF8Y1MR2K1LQH5X3OFNBQ0ZBUVK5H2EVVMFFUXB1PFNZPUET3RW6BH5QBAZGG2620ESD269RS5CN5MOEHINXOD9VBTE1UURVYMI6NY0M0ZFESOBT8RJI86BB827QX8P
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-13542af2-648a-4797-82d9-ea5600200b1e-485666&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.670[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.670[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 3.06 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.670[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.671[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.671[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.671[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.671[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.671[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is a long string &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.672[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m460[0m - [1mgenerate testcase log: /Users/changjie.lin/src/project5/entrytask/logs/13542af2-648a-4797-82d9-ea5600200b1e.run.log[0m
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">testcases/cases_3_test.py::TestCaseCases3::test_start</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>[32m2021-04-08 14:31:25.678[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m450[0m - [1mStart to run testcase: Entry Task &#x27;HTTP module API&#x27; test cases, TestCase ID: 6fb601e1-34b6-4fab-a192-06d597b43e3c[0m
+[32m2021-04-08 14:31:25.678[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：POST request &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.682[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.682[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.682[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : POST
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485679&quot;,
+    &quot;Content-Length&quot;: &quot;0&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.683[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;76&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 11,
+    &quot;error_message&quot;: &quot;system error&quot;,
+    &quot;reference&quot;: &quot;System Error&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.683[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.81 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.684[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.684[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.684[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 11(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.684[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal system error(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.684[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal System Error(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.685[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：POST request &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.685[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is JS code snippet &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.688[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.688[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.689[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=%3C%2Fh1%3E%3Cscript%3Ealert%28%27xss%27%29%3B%3C%2Fscript%3E%3C%2Fh1%3E
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485685&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.689[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.689[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 3.02 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.690[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is JS code snippet &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.691[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; is html code snippet &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.694[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.694[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.694[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=alert%28%27warning%27%29%3B
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485691&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.695[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.695[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.78 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.695[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.695[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.695[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.696[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.696[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.696[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; is html code snippet &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.696[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：extra parameter &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.699[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.699[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.700[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=nihao&amp;c=extra
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485696&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.700[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.700[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.49 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.701[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：extra parameter &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.702[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：wrong parameter name &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.705[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.705[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.706[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a_wrong=1&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485702&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.706[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;93&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameters Missing a&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.706[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.94 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameters Missing a(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.707[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：wrong parameter name &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.708[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; includes &#x27;/&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.711[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.711[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.711[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1%2F&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485708&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.712[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.712[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.67 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.712[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.712[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.712[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.713[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.713[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.713[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; includes &#x27;/&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.713[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;b&#x27; contains &#x27;
+&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.716[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.716[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.716[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=nihao%0A
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-6fb601e1-34b6-4fab-a192-06d597b43e3c-485713&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.717[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.717[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.61 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.717[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.718[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.718[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.718[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.718[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.718[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;b&#x27; contains &#x27;
+&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.719[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m460[0m - [1mgenerate testcase log: /Users/changjie.lin/src/project5/entrytask/logs/6fb601e1-34b6-4fab-a192-06d597b43e3c.run.log[0m
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">testcases/cases_1_test.py::TestCaseCases1::test_start</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>[32m2021-04-08 14:31:25.724[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m450[0m - [1mStart to run testcase: Entry Task &#x27;HTTP module API&#x27; test cases, TestCase ID: 02e909bd-820a-4e57-b652-e5d584523378[0m
+[32m2021-04-08 14:31:25.725[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive Scenario：a=int, b=string &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.728[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.728[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.728[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=1&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485725&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.729[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.729[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.68 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.729[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.729[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.730[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.730[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.730[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.730[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive Scenario：a=int, b=string &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.730[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：a=random positive int, b=string &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.734[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.734[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.734[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=284&amp;b=JtSMVTq
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485731&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.735[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.735[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.84 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.735[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.735[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.735[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.736[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.736[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.736[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：a=random positive int, b=string &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.736[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：a=random negative int, b=string &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.739[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.739[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.739[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=-121&amp;b=UtGLYgVBZ
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485736&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.740[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.740[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.46 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.740[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.740[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.741[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.741[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.741[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.741[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：a=random negative int, b=string &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.741[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：missing parameter &#x27;a&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.744[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.744[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.744[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485741&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.745[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;93&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameters Missing a&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.745[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.18 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.745[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.745[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.745[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.746[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.746[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameters Missing a(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.746[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：missing parameter &#x27;a&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.746[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is &#x27;&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.749[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.749[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.750[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485746&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.750[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;158&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int typeParameter &#x27;a&#x27; should not be empty&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.750[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.45 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.751[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.751[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.751[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.751[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.751[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int typeParameter &#x27;a&#x27; should not be empty(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.752[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is &#x27;&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.752[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is None &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.755[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.755[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.756[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=None&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485752&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.756[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.756[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.95 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.756[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.757[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.757[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.757[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.757[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.757[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is None &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.758[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is non-int type &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.760[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.761[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.761[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=2.34&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485758&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.761[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.762[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.45 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.762[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.762[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.762[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.762[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.763[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.763[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is non-int type &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.763[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is a String &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.766[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.766[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.766[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=hi&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485763&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.767[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.767[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.63 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.768[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.768[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.768[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.768[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.768[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.769[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is a String &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.769[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is special characters &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.772[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.773[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.773[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=%26%5E%2A&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485769&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.773[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.774[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 3.21 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.774[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.774[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.774[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.774[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.775[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.775[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is special characters &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.775[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Negative case：parameter &#x27;a&#x27; is &#x27;中文&#x27; &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.778[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.778[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.778[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=%E4%B8%AD%E6%96%87&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485775&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.779[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;125&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 21,
+    &quot;error_message&quot;: &quot;empty or wrong params&quot;,
+    &quot;reference&quot;: &quot;Parameter Illegal Parameter &#x27;a&#x27; needs to be int type&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.779[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.65 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.779[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 21(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal empty or wrong params(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal Parameter Illegal Parameter &#x27;a&#x27; needs to be int type(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Negative case：parameter &#x27;a&#x27; is &#x27;中文&#x27; &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.780[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;a&#x27; is minimum Int &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.783[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.784[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.784[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=-9223372036854775808&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485781&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.785[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.785[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.71 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.785[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.785[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.785[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.786[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.786[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.786[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;a&#x27; is minimum Int &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.786[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m292[0m - [1mrun step begin: Positive case：parameter &#x27;a&#x27; is maximum Int &gt;&gt;&gt;&gt;&gt;&gt;[0m
+[32m2021-04-08 14:31:25.789[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m188[0m - [33m[1mfailed to get client address info: &#x27;NoneType&#x27; object has no attribute &#x27;getsockname&#x27;[0m
+[32m2021-04-08 14:31:25.789[0m | [33m[1mWARNING [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m196[0m - [33m[1mfailed to get server address info: &#x27;NoneType&#x27; object has no attribute &#x27;getpeername&#x27;[0m
+[32m2021-04-08 14:31:25.790[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== request details ==================
+method   : GET
+url      : http://127.0.0.1:5000/shopee/test?a=9223372036854775807&amp;b=nihao
+headers  : {
+    &quot;User-Agent&quot;: &quot;python-requests/2.25.1&quot;,
+    &quot;Accept-Encoding&quot;: &quot;gzip, deflate&quot;,
+    &quot;Accept&quot;: &quot;*/*&quot;,
+    &quot;Connection&quot;: &quot;keep-alive&quot;,
+    &quot;HRUN-Request-ID&quot;: &quot;HRUN-02e909bd-820a-4e57-b652-e5d584523378-485786&quot;
+}
+cookies  : {}
+body     : None
+[0m
+[32m2021-04-08 14:31:25.790[0m | [34m[1mDEBUG   [0m | [36mhttprunner.client[0m:[36mlog_print[0m:[36m40[0m - [34m[1m
+================== response details ==================
+status_code : 200
+headers  : {
+    &quot;Content-Type&quot;: &quot;application/json&quot;,
+    &quot;Content-Length&quot;: &quot;65&quot;,
+    &quot;Server&quot;: &quot;Werkzeug/1.0.1 Python/3.8.2&quot;,
+    &quot;Date&quot;: &quot;Thu, 08 Apr 2021 06:31:25 GMT&quot;
+}
+cookies  : {}
+encoding : utf-8
+content_type : application/json
+body     : {
+    &quot;error_code&quot;: 0,
+    &quot;error_message&quot;: &quot;success&quot;,
+    &quot;reference&quot;: &quot;success&quot;
+}
+[0m
+[32m2021-04-08 14:31:25.790[0m | [1mINFO    [0m | [36mhttprunner.client[0m:[36mrequest[0m:[36m217[0m - [1mstatus_code: 200, response_time(ms): 2.63 ms, response_length: 0 bytes[0m
+[32m2021-04-08 14:31:25.790[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert status_code equal 200(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.791[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert headers.&quot;Content-Type&quot; equal application/json(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.791[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_code equal 0(int)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.791[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.error_message equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.791[0m | [1mINFO    [0m | [36mhttprunner.response[0m:[36mvalidate[0m:[36m246[0m - [1massert body.reference equal success(str)	==&gt; pass[0m
+[32m2021-04-08 14:31:25.791[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36m__run_step[0m:[36m304[0m - [1mrun step end: Positive case：parameter &#x27;a&#x27; is maximum Int &lt;&lt;&lt;&lt;&lt;&lt;
+[0m
+[32m2021-04-08 14:31:25.792[0m | [1mINFO    [0m | [36mhttprunner.runner[0m:[36mtest_start[0m:[36m460[0m - [1mgenerate testcase log: /Users/changjie.lin/src/project5/entrytask/logs/02e909bd-820a-4e57-b652-e5d584523378.run.log[0m
+<br/></div></td></tr></tbody></table></body></html>

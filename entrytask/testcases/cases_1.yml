@@ -1,0 +1,184 @@
+config:
+    name: "Entry Task 'HTTP module API' test cases"
+    base_url: "http://127.0.0.1:5000"
+
+teststeps:
+-
+    name: "Positive Scenario：a=int, b=string"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：a=random positive int, b=string"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: ${get_random_positive()}
+            b: '${get_random_str()}'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：a=random negative int, b=string"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: ${get_random_negative()}
+            b: '${get_random_str()}'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Negative case：missing parameter 'a'"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameters Missing a"]
+-
+    name: "Negative case：parameter 'a' is ''"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: ''
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int typeParameter 'a' should not be empty"]
+-
+    name: "Negative case：parameter 'a' is None"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: None
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int type"]
+-
+    name: "Negative case：parameter 'a' is non-int type"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 2.34
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int type"]
+-
+    name: "Negative case：parameter 'a' is a String"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 'hi'
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int type"]
+-
+    name: "Negative case：parameter 'a' is special characters"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: '&^*'
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int type"]
+-
+    name: "Negative case：parameter 'a' is '中文'"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: '中文'
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'a' needs to be int type"]
+-
+    name: "Positive case：parameter 'a' is minimum Int"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: -9223372036854775808
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：parameter 'a' is maximum Int"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 9223372036854775807
+            b: 'nihao'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]

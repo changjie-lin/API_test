@@ -1,0 +1,109 @@
+config:
+    name: "Entry Task 'HTTP module API' test cases"
+    base_url: "http://127.0.0.1:5000"
+
+teststeps:
+-
+    name: "Negative case：parameter 'b' is missing"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameters Missing b"]
+-
+    name: "Negative case：parameter 'b' is ''"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: ''
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 21]
+        - eq: ["content.error_message", "empty or wrong params"]
+        - eq: ["content.reference", "Parameter Illegal Parameter 'b' should not be empty"]
+-
+    name: "Positive case：parameter 'b' is None"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: None
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：parameter 'b' is a number"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: 5
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：parameter 'b' is '中文'"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: '中文'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：parameter 'b' is special characters"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: '^&*?'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
+-
+    name: "Positive case：parameter 'b' is a long string"
+    request:
+        url: /shopee/test
+        method: GET
+        params:
+            a: 1
+            b: '${get_long_str()}'
+
+    validate:
+        - eq: ["status_code", 200]
+        - eq: ["headers.Content-Type", "application/json"]
+        - eq: ["content.error_code", 0]
+        - eq: ["content.error_message", "success"]
+        - eq: ["content.reference", "success"]
